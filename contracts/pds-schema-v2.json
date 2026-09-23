@@ -1,0 +1,366 @@
+{
+  "contract_version": "2.0",
+  "project": "플랜두씨 다이어리 1",
+  "database": {
+    "type": "PostgreSQL",
+    "access_rule": "브라우저는 DB에 직접 접속하지 않고 Node/Express 서버 API만 호출한다. DATABASE_URL은 서버 환경 변수에만 저장한다."
+  },
+  "time": {
+    "duration_unit": "minutes",
+    "database_datetime_storage": "TIMESTAMPTZ (UTC 의미를 보존하는 절대 시각)",
+    "date_storage": "DATE (YYYY-MM-DD)",
+    "display_timezone": "Asia/Seoul",
+    "overdue_rule": "deleted_at IS NULL, status != '완료', due_date가 Asia/Seoul 기준 오늘보다 이전이면 지연. 완료 항목은 지연에 중복 포함하지 않는다."
+  },
+  "tables": {
+    "plans": {
+      "primary_key": "id",
+      "fields": {
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "title": {
+          "type": "text",
+          "nullable": false
+        },
+        "start_date": {
+          "type": "date",
+          "nullable": false
+        },
+        "end_date": {
+          "type": "date",
+          "nullable": false
+        },
+        "priority": {
+          "type": "text",
+          "nullable": false,
+          "allowed": [
+            "낮음",
+            "보통",
+            "높음"
+          ]
+        },
+        "success_criteria": {
+          "type": "text",
+          "nullable": false
+        },
+        "estimated_minutes": {
+          "type": "integer",
+          "nullable": false,
+          "unit": "minutes"
+        },
+        "source_reflection_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "timestamptz",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "timestamptz",
+          "nullable": false
+        }
+      },
+      "foreign_keys": [
+        {
+          "field": "source_reflection_id",
+          "references": "reflections.id",
+          "on_delete": "SET NULL"
+        }
+      ],
+      "unique_constraints": []
+    },
+    "plan_revisions": {
+      "primary_key": "id",
+      "fields": {
+        "id": {
+          "type": "bigserial",
+          "nullable": false
+        },
+        "plan_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "revision_no": {
+          "type": "integer",
+          "nullable": false
+        },
+        "title": {
+          "type": "text",
+          "nullable": false
+        },
+        "start_date": {
+          "type": "date",
+          "nullable": false
+        },
+        "end_date": {
+          "type": "date",
+          "nullable": false
+        },
+        "priority": {
+          "type": "text",
+          "nullable": false
+        },
+        "success_criteria": {
+          "type": "text",
+          "nullable": false
+        },
+        "estimated_minutes": {
+          "type": "integer",
+          "nullable": false,
+          "unit": "minutes"
+        },
+        "captured_at": {
+          "type": "timestamptz",
+          "nullable": false
+        }
+      },
+      "foreign_keys": [
+        {
+          "field": "plan_id",
+          "references": "plans.id",
+          "on_delete": "CASCADE"
+        }
+      ],
+      "unique_constraints": [
+        [
+          "plan_id",
+          "revision_no"
+        ]
+      ],
+      "revision_rule": "계획 수정 트랜잭션에서 기존 plans 행을 먼저 plan_revisions에 복사한 뒤 현재 plans 행을 갱신한다. plan id는 유지된다."
+    },
+    "tasks": {
+      "primary_key": "id",
+      "fields": {
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "plan_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "title": {
+          "type": "text",
+          "nullable": false
+        },
+        "content": {
+          "type": "text",
+          "nullable": false
+        },
+        "due_date": {
+          "type": "date",
+          "nullable": true
+        },
+        "priority": {
+          "type": "text",
+          "nullable": false,
+          "allowed": [
+            "낮음",
+            "보통",
+            "높음"
+          ]
+        },
+        "tags": {
+          "type": "text[]",
+          "nullable": false
+        },
+        "estimated_minutes": {
+          "type": "integer",
+          "nullable": false,
+          "unit": "minutes"
+        },
+        "status": {
+          "type": "text",
+          "nullable": false,
+          "allowed": [
+            "진행 중",
+            "완료"
+          ]
+        },
+        "created_at": {
+          "type": "timestamptz",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "timestamptz",
+          "nullable": false
+        },
+        "deleted_at": {
+          "type": "timestamptz",
+          "nullable": true
+        }
+      },
+      "foreign_keys": [
+        {
+          "field": "plan_id",
+          "references": "plans.id",
+          "on_delete": "CASCADE"
+        }
+      ],
+      "unique_constraints": [],
+      "soft_delete_rule": "삭제 시 행을 제거하지 않고 deleted_at=now()로 저장한다. 기본 목록과 See 집계는 deleted_at IS NULL만 사용한다."
+    },
+    "execution_logs": {
+      "primary_key": "id",
+      "fields": {
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "task_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "started_at": {
+          "type": "timestamptz",
+          "nullable": false
+        },
+        "ended_at": {
+          "type": "timestamptz",
+          "nullable": false
+        },
+        "actual_minutes": {
+          "type": "integer",
+          "nullable": false,
+          "unit": "minutes"
+        },
+        "blocked_reason": {
+          "type": "text",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "timestamptz",
+          "nullable": false
+        }
+      },
+      "foreign_keys": [
+        {
+          "field": "task_id",
+          "references": "tasks.id",
+          "on_delete": "CASCADE"
+        }
+      ],
+      "unique_constraints": [],
+      "separation_rule": "execution_logs 추가는 tasks.estimated_minutes 또는 plans.estimated_minutes를 변경하지 않는다."
+    },
+    "completion_events": {
+      "primary_key": "id",
+      "fields": {
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "task_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "idempotency_key": {
+          "type": "text",
+          "nullable": false
+        },
+        "completed_at": {
+          "type": "timestamptz",
+          "nullable": false
+        },
+        "active": {
+          "type": "boolean",
+          "nullable": false
+        },
+        "reopened_at": {
+          "type": "timestamptz",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "timestamptz",
+          "nullable": false
+        }
+      },
+      "foreign_keys": [
+        {
+          "field": "task_id",
+          "references": "tasks.id",
+          "on_delete": "CASCADE"
+        }
+      ],
+      "unique_constraints": [
+        [
+          "task_id",
+          "idempotency_key"
+        ],
+        {
+          "fields": [
+            "task_id"
+          ],
+          "where": "active = TRUE"
+        }
+      ],
+      "idempotency_rule": "완료 API는 트랜잭션 안에서 completion_events INSERT ... ON CONFLICT DO NOTHING 후 task status를 완료로 갱신한다. DB partial unique index(task_id WHERE active=TRUE)로 빠른 중복 요청도 활성 완료 이벤트 한 건만 허용한다. 되돌리기 시 기존 이벤트를 삭제하지 않고 active=false, reopened_at=now()로 남겨 완료 이력을 보존하며 이후 재완료는 새 이벤트로 기록한다."
+    },
+    "reflections": {
+      "primary_key": "id",
+      "fields": {
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "source_plan_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "improvement_text": {
+          "type": "text",
+          "nullable": false
+        },
+        "next_plan_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "timestamptz",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "timestamptz",
+          "nullable": false
+        }
+      },
+      "foreign_keys": [
+        {
+          "field": "source_plan_id",
+          "references": "plans.id",
+          "on_delete": "CASCADE"
+        },
+        {
+          "field": "next_plan_id",
+          "references": "plans.id",
+          "on_delete": "SET NULL"
+        }
+      ],
+      "unique_constraints": [],
+      "next_plan_rule": "다음 계획 생성 시 plans.source_reflection_id에 reflection id를 기록하고 reflections.next_plan_id도 새 plan id로 연결한다."
+    }
+  },
+  "relations": [
+    "plans 1:N tasks",
+    "plans 1:N plan_revisions",
+    "tasks 1:N execution_logs",
+    "tasks 1:0..1 active completion_events",
+    "plans(source) 1:N reflections",
+    "reflections 0..1:1 plans(next)"
+  ],
+  "summary_rules": {
+    "plan_count": "선택 계획의 deleted_at IS NULL인 tasks 수",
+    "completed_count": "그중 status='완료'인 tasks 수",
+    "overdue_count": "그중 미완료이며 due_date < Asia/Seoul 기준 오늘인 tasks 수",
+    "blocked_count": "blocked_reason이 비어 있지 않은 execution_logs가 하나 이상 연결된 서로 다른 task 수",
+    "estimated_minutes": "대상 tasks의 estimated_minutes 합",
+    "actual_minutes": "대상 tasks에 연결된 execution_logs.actual_minutes 합",
+    "difference_minutes": "actual_minutes - estimated_minutes",
+    "empty_data": "합계가 없으면 0"
+  },
+  "xss_rule": "사용자 문자열 렌더링은 DOM textContent 기반으로 처리하며 사용자 입력을 innerHTML로 실행하지 않는다."
+}

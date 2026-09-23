@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>플랜두씨 다이어리</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">PLAN → DO → SEE → NEXT PLAN</p>
+      <h1>플랜두씨 다이어리</h1>
+    </div>
+    <button id="exportBtn" class="button secondary">내 자료 내보내기</button>
+  </header>
+
+  <div class="public-warning">지금은 로그인이 없어 링크를 아는 사람은 누구나 볼 수 있습니다. 남이 봐도 괜찮은 내용만 넣으세요</div>
+
+  <nav class="tabs" aria-label="주요 화면">
+    <button class="tab active" data-tab="dashboard">대시보드</button>
+    <button class="tab" data-tab="plan">계획 Plan</button>
+    <button class="tab" data-tab="tasks">할 일 Tasks</button>
+    <button class="tab" data-tab="do">실행 기록 Do</button>
+    <button class="tab" data-tab="see">돌아보기 See</button>
+  </nav>
+
+  <main>
+    <section id="dashboard" class="view active">
+      <div class="hero card">
+        <div>
+          <span class="pill">오늘의 흐름</span>
+          <h2>계획하고, 실행하고, 돌아본 뒤 다음 계획으로 이어가세요.</h2>
+          <p>예상값과 실제값을 분리해 기록하고, 돌아보기 숫자에서 실제 근거 기록까지 바로 확인할 수 있습니다.</p>
+        </div>
+        <div class="flow" aria-label="Plan Do See Next Plan">
+          <span>PLAN</span><b>→</b><span>DO</span><b>→</b><span>SEE</span><b>→</b><span>NEXT PLAN</span>
+        </div>
+      </div>
+      <div class="dashboard-grid">
+        <article class="card"><h3>현재 계획</h3><div id="dashboardPlans" class="big-number">0</div><p>DB에 저장된 계획 수</p></article>
+        <article class="card"><h3>진행 중 할 일</h3><div id="dashboardOpenTasks" class="big-number">0</div><p>삭제되지 않은 진행 중 항목</p></article>
+        <article class="card"><h3>실행 기록</h3><div id="dashboardLogs" class="big-number">0</div><p>실제로 수행한 기록 수</p></article>
+      </div>
+      <div class="card">
+        <h3>시작 방법</h3>
+        <ol class="steps"><li>계획 Plan에서 계획을 만듭니다.</li><li>할 일 Tasks에서 계획에 연결된 할 일을 만듭니다.</li><li>실행 기록 Do에서 실제 수행 시간을 남깁니다.</li><li>돌아보기 See에서 집계와 근거를 확인하고 다음 계획 개선점을 작성합니다.</li></ol>
+      </div>
+    </section>
+
+    <section id="plan" class="view">
+      <div class="section-head"><div><p class="eyebrow">PLAN</p><h2>계획 관리</h2></div><button id="newPlanBtn" class="button">새 계획</button></div>
+      <div class="split">
+        <form id="planForm" class="card form-card">
+          <input type="hidden" id="planId" />
+          <input type="hidden" id="sourceReflectionId" />
+          <h3 id="planFormTitle">계획 만들기</h3>
+          <div id="importedImprovement" class="import-box hidden"></div>
+          <label>제목<input id="planTitle" required maxlength="120" /></label>
+          <div class="two"><label>시작일<input id="planStart" type="date" required /></label><label>종료일<input id="planEnd" type="date" required /></label></div>
+          <div class="two"><label>우선순위<select id="planPriority"><option>높음</option><option selected>보통</option><option>낮음</option></select></label><label>예상 시간(분)<input id="planEstimated" type="number" min="0" step="1" value="60" required /></label></div>
+          <label>성공 기준<textarea id="planSuccess" rows="3" required maxlength="1000"></textarea></label>
+          <div class="actions"><button class="button" type="submit">저장</button><button id="cancelPlanEdit" class="button ghost hidden" type="button">수정 취소</button></div>
+        </form>
+        <div class="card"><h3>계획 목록</h3><div id="planList" class="stack"></div></div>
+      </div>
+      <dialog id="historyDialog"><div class="dialog-head"><h3>수정 이력</h3><button data-close="historyDialog" class="icon-button">×</button></div><div id="historyContent" class="stack"></div></dialog>
+    </section>
+
+    <section id="tasks" class="view">
+      <div class="section-head"><div><p class="eyebrow">TASKS</p><h2>할 일 관리</h2></div></div>
+      <div class="split">
+        <form id="taskForm" class="card form-card">
+          <input type="hidden" id="taskId" />
+          <h3 id="taskFormTitle">할 일 만들기</h3>
+          <label>계획<select id="taskPlan" required></select></label>
+          <label>제목<input id="taskTitle" required maxlength="160" /></label>
+          <label>내용<textarea id="taskContent" rows="3" maxlength="1500"></textarea></label>
+          <div class="two"><label>마감일<input id="taskDue" type="date" /></label><label>우선순위<select id="taskPriority"><option>높음</option><option selected>보통</option><option>낮음</option></select></label></div>
+          <div class="two"><label>태그(쉼표 구분)<input id="taskTags" placeholder="과제, 개발" /></label><label>예상 시간(분)<input id="taskEstimated" type="number" min="0" step="1" value="30" required /></label></div>
+          <div class="actions"><button class="button" type="submit">저장</button><button id="cancelTaskEdit" class="button ghost hidden" type="button">수정 취소</button></div>
+        </form>
+        <div class="card">
+          <div class="filters">
+            <input id="taskSearch" placeholder="제목/내용/태그 검색" />
+            <select id="filterStatus"><option value="">상태: 전체</option><option>진행 중</option><option>완료</option></select>
+            <select id="filterPriority"><option value="">우선순위: 전체</option><option>높음</option><option>보통</option><option>낮음</option></select>
+            <input id="filterTag" placeholder="태그 필터" />
+            <select id="taskSort"><option value="priority_due_created">정렬: 우선순위 → 마감일 → 생성일</option><option value="due_created">정렬: 마감일 → 생성일</option><option value="created_desc">정렬: 최신 생성일</option></select>
+          </div>
+          <p class="sort-note">동일 값 tie-breaker: 생성일 → ID 순으로 고정합니다.</p>
+          <div id="taskList" class="stack"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="do" class="view">
+      <div class="section-head"><div><p class="eyebrow">DO</p><h2>실제 실행 기록</h2><p class="muted">계획/할 일의 예상 시간은 바꾸지 않고, 실제 수행만 별도로 저장합니다.</p></div></div>
+      <div class="split">
+        <form id="executionForm" class="card form-card">
+          <h3>실행 기록 추가</h3>
+          <label>할 일<select id="executionTask" required></select></label>
+          <div class="two"><label>시작 시각<input id="startedAt" type="datetime-local" required /></label><label>종료 시각<input id="endedAt" type="datetime-local" required /></label></div>
+          <label>실제 소요 시간(분)<input id="actualMinutes" type="number" min="0" step="1" required /></label>
+          <label>막혔던 이유<textarea id="blockedReason" rows="3" maxlength="1500" placeholder="없으면 비워두세요"></textarea></label>
+          <button class="button" type="submit">실행 기록 저장</button>
+        </form>
+        <div class="card"><h3>실행 기록</h3><div id="executionList" class="stack"></div></div>
+      </div>
+    </section>
+
+    <section id="see" class="view">
+      <div class="section-head"><div><p class="eyebrow">SEE</p><h2>돌아보기</h2></div></div>
+      <div class="card see-control"><label>돌아볼 계획<select id="seePlan"></select></label><p>숫자를 누르면 해당 집계를 만든 근거 기록을 볼 수 있습니다.</p></div>
+      <div id="summaryGrid" class="summary-grid"></div>
+      <div class="split see-lower">
+        <div class="card"><h3>근거 기록</h3><p id="evidenceHint" class="muted">위 집계 숫자를 눌러 주세요.</p><div id="evidenceList" class="stack"></div></div>
+        <div class="card">
+          <h3>다음 계획으로 이어가기</h3>
+          <form id="reflectionForm"><label>다음 계획에서 개선할 점 한 줄<input id="improvementText" required maxlength="300" placeholder="예: 다음 계획에서는 예상 시간을 조금 더 넉넉하게 잡기" /></label><button class="button" type="submit">개선점 저장</button></form>
+          <div id="reflectionList" class="stack compact"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>

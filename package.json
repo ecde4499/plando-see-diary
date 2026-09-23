@@ -1,0 +1,22 @@
+{
+  "name": "plando-see-diary",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Plan → Do → See → Next Plan diary app with PostgreSQL persistence",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "migrate": "node db/migrate.js",
+    "test": "node --test tests/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "helmet": "^8.0.0",
+    "pg": "^8.13.1"
+  }
+}

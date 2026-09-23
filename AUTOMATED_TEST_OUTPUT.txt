@@ -1,0 +1,27 @@
+자동 검사 실행 결과
+
+실행 명령:
+- node --check public/app.js
+- node --check server/index.js
+- node --check server/aggregate.js
+- node --check db/migrate.js
+- python -m json.tool contracts/pds-schema-v2.json
+- npm test
+
+결과:
+- JavaScript syntax checks: PASS
+- pds-schema-v2.json JSON syntax: PASS
+- node:test: 7 passed / 0 failed
+
+node:test 세부 항목:
+1. See 집계 규칙: 삭제 제외, 완료 지연 중복 제외, 막힘 task distinct, 시간 합계 — PASS
+2. 자료가 없으면 모든 집계는 0 — PASS
+3. 고정 공개 경고 문구가 정확히 존재 — PASS
+4. 브라우저 코드에 localStorage/innerHTML=/서버 DB 비밀 환경변수 사용 없음 — PASS
+5. DB 완료 이벤트 task 단위 UNIQUE 존재 — PASS
+6. 계획 수정 이력 테이블과 soft delete 필드 존재 — PASS
+7. DB 계약 JSON 문법 및 핵심 테이블 — PASS
+
+주의:
+의존성 npm install은 현재 실행 환경에서 네트워크 대기로 타임아웃되어 완료하지 못했습니다.
+따라서 원격 PostgreSQL 연결이 필요한 통합 테스트와 실제 브라우저/배포 테스트는 TEST_RESULTS.md에 수동 확인 필요로 유지했습니다.
