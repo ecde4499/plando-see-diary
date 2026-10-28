@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>로그인 · 플랜두씨 다이어리</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/t07-auth.css" />
+</head>
+<body>
+  <main class="t07-main">
+    <section id="authScreen" aria-labelledby="authHeading">
+      <div class="card t07-card">
+        <p class="eyebrow">PLAN → DO → SEE → NEXT PLAN</p>
+        <h1 id="authHeading">내 플랜두씨 다이어리</h1>
+        <p class="muted">로그인한 계정의 계획과 실행 기록만 볼 수 있습니다.</p>
+        <div class="actions auth-mode" role="group" aria-label="인증 방법">
+          <button id="showLogin" type="button" class="button" aria-pressed="true">로그인</button>
+          <button id="showRegister" type="button" class="button secondary" aria-pressed="false">회원가입</button>
+        </div>
+        <form id="authForm">
+          <label>이메일<input id="authEmail" type="email" name="email" autocomplete="username" maxlength="254" required /></label>
+          <label>비밀번호<input id="authPassword" name="password" type="password" autocomplete="current-password" minlength="12" maxlength="1024" required /></label>
+          <p id="passwordHint" class="muted hidden">비밀번호는 최소 12자로 만들어 주세요.</p>
+          <p id="authError" class="auth-error" role="alert" hidden></p>
+          <button id="authSubmit" class="button t07-submit" type="submit">로그인</button>
+        </form>
+        <p class="muted t07-footnote">과제6의 기존 공개 기록은 별도의 이전 절차를 거치기 전까지 새 계정에 자동으로 표시되지 않습니다.</p>
+      </div>
+    </section>
+    <section id="appShell" hidden aria-label="로그인 완료">
+      <div class="card t07-card">
+        <p class="eyebrow">PLAN → DO → SEE</p>
+        <h1>로그인 완료</h1>
+        <p><strong id="currentUserEmail"></strong> 계정으로 로그인했어요.</p>
+        <div class="actions">
+          <a href="/diary" class="button t07-link">내 다이어리 열기</a>
+          <button id="logoutBtn" type="button" class="button secondary">로그아웃</button>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script src="/auth-client.js" defer></script>
+</body>
+</html>
