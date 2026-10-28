@@ -73,8 +73,20 @@ async function issueSession(req, res, pool, userId) {
 function createAuthRouter(express, pool) {
   const router = express.Router();
   const dummyHashPromise = hashPassword('constant-dummy-password-never-used');
+  const attempts = new Map();
+  const rateLimitAuth = (req, res, next) => {
+    const key = String(req.ip || req.socket.remoteAddress || '') + ':' + req.path;
+    const now = Date.now();
+    const prior = attempts.get(key);
+    const current = !prior || prior.until < now ? { count: 0, until: now + 15 * 60 * 1000 } : prior;
+    if (current.count >= 15) return res.status(429).json({ error: '요청이 너무 많습니다. 잠시 후 다시 시도하세요.' });
+    current.count += 1;
+    if (attempts.size > 5000) attempts.clear();
+    attempts.set(key, current);
+    next();
+  };
   router.use((req, res, next) => req.method === 'GET' ? next() : requireSameOrigin(req, res, next));
-  router.post('/register', async (req, res, next) => {
+  router.post('/register', rateLimitAuth, async (req, res, next) => {
     const email = normalizeEmail(req.body?.email);
     const password = req.body?.password;
     if (!validEmail(email) || typeof password !== 'string' || password.length < 12 ||
@@ -104,7 +116,7 @@ function createAuthRouter(express, pool) {
       res.status(201).json({ user });
     } catch (error) { next(error); }
   });
-  router.post('/login', async (req, res, next) => {
+  router.post('/login', rateLimitAuth, async (req, res, next) => {
     const email = normalizeEmail(req.body?.email);
     const password = req.body?.password;
     if (!validEmail(email) || typeof password !== 'string') {
