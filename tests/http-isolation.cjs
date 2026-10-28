@@ -78,12 +78,20 @@ async function main() {
   let stderr = '';
   child.stderr.on('data', chunk => { stderr += String(chunk).slice(0, 1000); });
   let ready = false;
+  let lastHealthStatus = null;
   for (let i = 0; i < 60; i++) {
     if (child.exitCode !== null) throw new Error('Test server exited unexpectedly');
-    try { const r = await fetch(base + '/api/health'); if (r.ok) { ready = true; break; } } catch {}
+    try {
+      const response = await fetch(base + '/api/health');
+      lastHealthStatus = response.status;
+      if (response.ok) { ready = true; break; }
+    } catch {}
     await pause(100);
   }
-  if (!ready) throw new Error('Test server did not start: ' + stderr.slice(0, 200));
+  if (!ready) {
+    throw new Error('Test server did not become healthy (last HTTP status: ' +
+      (lastHealthStatus ?? 'connection unavailable') + '). ' + stderr.slice(0, 200));
+  }
 
   const nonce = require('node:crypto').randomUUID().slice(0, 8);
   const emailA = `a-${nonce}@example.test`, emailB = `b-${nonce}@example.test`;
