@@ -1,5 +1,6 @@
 require('dotenv').config();
 const path = require('path');
+const fs = require('fs');
 const express = require('express');
 const helmet = require('helmet');
 const { pool } = require('./db');
@@ -14,7 +15,23 @@ const PORT = Number(process.env.PORT || 3000);
 app.disable('x-powered-by');
 app.use(helmet());
 app.use(express.json({ limit: '1mb' }));
-app.use(express.static(path.join(__dirname, '..', 'public')));
+// T07: keep the T06 source HTML unmodified and serve a separate login entry.
+app.get('/index.html', (_req, res) => res.redirect(302, '/'));
+app.use(express.static(path.join(__dirname, '..', 'public'), { index: false }));
+app.get('/', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.sendFile(path.join(__dirname, '..', 'public', 't07-login.html'));
+});
+app.get('/diary', requireAuth(pool), (_req, res, next) => {
+  try {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+    // Do not display T06's historical "no login" warning inside the T07 diary.
+    const served = html.replace('class="public-warning"', 'class="public-warning hidden"')
+      .replace('</body>', '<link rel="stylesheet" href="/t07-auth.css" /><script src="/t07-account.js" defer></script></body>');
+    res.setHeader('Cache-Control', 'no-store');
+    res.type('html').send(served);
+  } catch (error) { next(error); }
+});
 
 // T07: Auth endpoints are available only on the development branch.
 // Legacy data routes below are not yet tenant-scoped: DO NOT DEPLOY until isolated.
@@ -316,7 +333,7 @@ app.get('/api/export', async (_req, res, next) => {
 });
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'API를 찾을 수 없습니다.' }));
-app.get('*', (_req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
+app.get('*', (_req, res) => res.redirect(302, '/'));
 app.use((err, _req, res, _next) => {
   console.error(err);
   const safeMessage = err && err.code === '23503' ? '연결된 데이터가 존재하지 않습니다.' : '서버 요청 처리 중 오류가 발생했습니다.';
