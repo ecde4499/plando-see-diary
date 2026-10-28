@@ -48,3 +48,11 @@ jobs:
       - run: npm ci
       - name: Run real HTTP tenant isolation against disposable PostgreSQL
         run: npm run test:http
+      - name: Preserve sanitized HTTP verification report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: t07-http-evidence
+          path: test-results/t07-http-evidence.json
+          if-no-files-found: warn
+          retention-days: 14
