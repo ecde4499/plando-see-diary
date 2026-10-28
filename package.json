@@ -10,7 +10,8 @@
     "migrate": "node db/migrate.js",
     "test": "node --test tests/*.test.js",
     "test:http": "node tests/http-isolation.cjs",
-    "preflight:t07": "node tools/t07-preflight.cjs"
+    "preflight:t07": "node tools/t07-preflight.cjs",
+    "report:five-days": "node tools/t07-five-day-report.cjs"
   },
   "engines": {
     "node": ">=20"
