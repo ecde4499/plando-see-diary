@@ -188,8 +188,11 @@ function createAuthRouter(express, pool) {
 
 function requireAuth(pool) {
   return async (req, res, next) => {
+    const reject = () => (req.method === 'GET' && ['/diary', '/account'].includes(req.path))
+      ? res.redirect(302, '/')
+      : res.status(401).json({ error: '로그인이 필요합니다.' });
     const token = parseCookie(req.headers.cookie, COOKIE_NAME);
-    if (!token || !/^[a-f0-9]{64}$/.test(token)) return res.status(401).json({ error: '로그인이 필요합니다.' });
+    if (!token || !/^[a-f0-9]{64}$/.test(token)) return reject();
     try {
       const result = await pool.query(
         `SELECT u.id,u.email FROM auth_sessions s
@@ -198,7 +201,7 @@ function requireAuth(pool) {
            AND s.created_at>=u.password_changed_at`,
         [digestToken(token)]
       );
-      if (!result.rowCount) return res.status(401).json({ error: '로그인이 필요합니다.' });
+      if (!result.rowCount) return reject();
       req.authUser = result.rows[0];
       next();
     } catch (error) { next(error); }
