@@ -53,7 +53,24 @@ function expectStatus(result, code, description) {
 async function main() {
   // Additive schema creation only, in the explicitly provided disposable test DB.
   await pool.query(fs.readFileSync(path.join(root, 'db/schema.sql'), 'utf8'));
+  // Model T06 data that predates the authentication migration.
+  const legacyPlan = await pool.query(`
+    INSERT INTO plans(title,start_date,end_date,priority,success_criteria,estimated_minutes)
+    VALUES($1,$2,$3,$4,$5,$6) RETURNING id`,
+  ['Unclaimed T06 fixture', '2026-10-01', '2026-10-31', '보통', 'preserved', 8]);
+  const legacyId = legacyPlan.rows[0].id;
+  const legacyTask = await pool.query(`
+    INSERT INTO tasks(plan_id,title,priority,estimated_minutes)
+    VALUES($1,$2,$3,$4) RETURNING id`, [legacyId, 'Legacy task', '보통', 8]);
+  await pool.query(`INSERT INTO execution_logs(task_id,started_at,ended_at,actual_minutes)
+    VALUES($1,$2,$3,$4)`, [legacyTask.rows[0].id, '2026-10-01T01:00:00+09:00',
+    '2026-10-01T01:08:00+09:00', 8]);
   await pool.query(fs.readFileSync(path.join(root, 'db/migrations/007_auth_foundation.sql'), 'utf8'));
+  const legacyAfterMigration = await pool.query(
+    'SELECT owner_user_id,title FROM plans WHERE id=$1', [legacyId]);
+  assert.equal(legacyAfterMigration.rows[0]?.owner_user_id, null, 'migration must not claim T06 records');
+  assert.equal(legacyAfterMigration.rows[0]?.title, 'Unclaimed T06 fixture',
+    'migration must preserve T06 records');
   child = spawn(process.execPath, ['server/index.js'], {
     cwd: root, stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, DATABASE_URL: url, DATABASE_SSL: isLocalTestDatabase ? 'false' : process.env.DATABASE_SSL, NODE_ENV: 'test', PORT: String(port) }
@@ -86,6 +103,10 @@ async function main() {
   const bPlans = await request('GET', '/api/plans', undefined, b.cookie);
   expectStatus(bPlans, 200, 'B plans');
   assert.ok(!bPlans.data.some(p => p.id === planId), 'B must not see A plan');
+  const aPlans = await request('GET', '/api/plans', undefined, a.cookie);
+  expectStatus(aPlans, 200, 'A plans');
+  assert.ok(!aPlans.data.some(p => p.id === legacyId), 'unclaimed T06 plan must be private to neither account');
+  assert.ok(!bPlans.data.some(p => p.id === legacyId), 'B must not claim T06 plan by signup');
   expectStatus(await request('PUT', '/api/plans/' + planId, { ...planBody, title: 'stolen' }, b.cookie), 404, 'B cannot update A plan');
   expectStatus(await request('POST', '/api/tasks', {
     plan_id: planId, title: 'stolen task', priority: '보통', estimated_minutes: 1
@@ -126,6 +147,7 @@ async function main() {
   const exportedB = await request('GET', '/api/export', undefined, b.cookie);
   expectStatus(exportedB, 200, 'B export');
   assert.ok(!exportedB.data.plans.some(p => p.id === planId), 'B export must exclude A plan');
+  assert.ok(!exportedB.data.plans.some(p => p.id === legacyId), 'B export excludes unclaimed T06 plan');
   // Check the reverse direction, forged owner IDs and plan-specific reads.
   const createdB = await request('POST', '/api/plans', {
     ...planBody, title: 'B private plan', owner_user_id: a.data.user.id
@@ -181,6 +203,8 @@ async function main() {
   assert.equal(survivingAPlan.rowCount, 1, 'B deletion does not delete A plans');
   const remainingBPlan = await pool.query('SELECT 1 FROM plans WHERE id=$1', [createdB.data.id]);
   assert.equal(remainingBPlan.rowCount, 0, 'B deletion removes only own plans');
+  const unclaimedAfterDeletion = await pool.query('SELECT 1 FROM plans WHERE id=$1', [legacyId]);
+  assert.equal(unclaimedAfterDeletion.rowCount, 1, 'account deletion must preserve unclaimed T06 data');
   console.log('PASS: cross-account reads/writes/forgeries, CSRF, rotation, deletion, logout');
   console.log('No production environment or data was used.');
 
