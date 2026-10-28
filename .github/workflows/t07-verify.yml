@@ -1,0 +1,20 @@
+name: T07 verification
+on:
+  push:
+    branches: [assignment-7]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  unit-and-http-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm test
