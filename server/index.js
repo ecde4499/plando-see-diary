@@ -22,9 +22,12 @@ app.get('/', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, '..', 'public', 't07-login.html'));
 });
-app.get('/account', requireAuth(pool), (_req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  res.sendFile(path.join(__dirname, '..', 'public', 't07-settings.html'));
+app.get('/account', requireAuth(pool), (_req, res, next) => {
+  try {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'public', 't07-settings.html'), 'utf8');
+    res.setHeader('Cache-Control', 'no-store');
+    res.type('html').send(html.replace('</body>', '<script src="/t07-delete.js" defer></script></body>'));
+  } catch (error) { next(error); }
 });
 app.get('/diary', requireAuth(pool), (_req, res, next) => {
   try {
