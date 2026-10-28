@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>계정 설정 · 플랜두씨</title>
+<link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/t07-auth.css">
+</head>
+<body>
+<main class="t07-main">
+<section class="card t07-card">
+<a href="/diary">다이어리로 돌아가기</a>
+<h1>계정 설정</h1>
+<p id="accountEmail"></p>
+<h2>비밀번호 변경</h2>
+<form id="passwordForm">
+<label>현재 비밀번호<input id="oldPassword" type="password" required></label>
+<label>새 비밀번호<input id="nextPassword" type="password" minlength="12" required></label>
+<button class="button" type="submit">비밀번호 변경</button>
+</form>
+<p id="accountMessage" role="status" aria-live="polite"></p>
+</section>
+</main>
+<script src="/t07-settings.js" defer></script>
+</body>
+</html>
