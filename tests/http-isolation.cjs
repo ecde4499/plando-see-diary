@@ -23,7 +23,14 @@ if (!/(^|[_-])(test|testing)([_-]|$)/.test(dbName)) {
   console.error('Test database name must contain a separate test marker (e.g. plando_test).');
   process.exit(2);
 }
-const pool = new Pool({ connectionString: url, ssl: /supabase|render\.com/.test(url) ? { rejectUnauthorized: false } : undefined });
+const testHost = new URL(url).hostname;
+const isLocalTestDatabase = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(testHost);
+if (!isLocalTestDatabase && process.env.ALLOW_REMOTE_TEST_DB !== 'I_UNDERSTAND_TEST_DB_IS_DISPOSABLE') {
+  console.error('Refusing remote test DB by default. Use local PostgreSQL or explicit disposable remote DB opt-in.');
+  process.exit(2);
+}
+const pool = new Pool({ connectionString: url,
+  ssl: isLocalTestDatabase ? false : { rejectUnauthorized: false } });
 const root = path.resolve(__dirname, '..');
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const port = 19000 + Math.floor(Math.random() * 10000);
@@ -46,7 +53,7 @@ async function main() {
   await pool.query(fs.readFileSync(path.join(root, 'db/migrations/007_auth_foundation.sql'), 'utf8'));
   child = spawn(process.execPath, ['server/index.js'], {
     cwd: root, stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, DATABASE_URL: url, NODE_ENV: 'test', PORT: String(port) }
+    env: { ...process.env, DATABASE_URL: url, DATABASE_SSL: isLocalTestDatabase ? 'false' : process.env.DATABASE_SSL, NODE_ENV: 'test', PORT: String(port) }
   });
   let stderr = '';
   child.stderr.on('data', chunk => { stderr += String(chunk).slice(0, 1000); });
@@ -85,6 +92,34 @@ async function main() {
   }, a.cookie);
   expectStatus(aTask, 201, 'A create task');
   expectStatus(await request('DELETE', '/api/tasks/' + aTask.data.id, undefined, b.cookie), 404, 'B cannot delete A task');
+  // Every record type must resist crossing the plan ownership boundary.
+  expectStatus(await request('GET', '/api/summary/' + planId, undefined, b.cookie), 404, 'B cannot read A summary');
+  expectStatus(await request('GET', '/api/summary/' + planId + '/evidence/planCount', undefined, b.cookie),
+    404, 'B cannot read A evidence');
+  expectStatus(await request('GET', '/api/reflections/' + planId, undefined, b.cookie), 404,
+    'B cannot read A reflections');
+  const bTasksForA = await request('GET', '/api/tasks?plan_id=' + planId, undefined, b.cookie);
+  expectStatus(bTasksForA, 200, 'B filtered tasks');
+  assert.equal(bTasksForA.data.length, 0, 'B cannot enumerate A tasks');
+  const bExecutionsForA = await request('GET', '/api/executions?task_id=' + aTask.data.id, undefined, b.cookie);
+  expectStatus(bExecutionsForA, 200, 'B filtered executions');
+  assert.equal(bExecutionsForA.data.length, 0, 'B cannot enumerate A executions');
+  expectStatus(await request('POST', '/api/executions', {
+    task_id: aTask.data.id, started_at: '2026-10-28T10:00:00+09:00',
+    ended_at: '2026-10-28T10:10:00+09:00', actual_minutes: 10
+  }, b.cookie), 404, 'B cannot write A execution');
+  expectStatus(await request('POST', '/api/reflections', {
+    source_plan_id: planId, improvement_text: 'unauthorized'
+  }, b.cookie), 404, 'B cannot write A reflection');
+  expectStatus(await request('POST', '/api/tasks/' + aTask.data.id + '/complete', {
+    idempotency_key: 'b-unauthorized-key'
+  }, b.cookie), 404, 'B cannot complete A task');
+  expectStatus(await request('POST', '/api/tasks/' + aTask.data.id + '/reopen', {}, b.cookie), 404,
+    'B cannot reopen A task');
+  expectStatus(await request('POST', '/api/plans', planBody), 401, 'Anonymous cannot create plan');
+  expectStatus(await request('POST', '/api/plans', planBody, a.cookie, {
+    Origin: 'https://attacker.invalid'
+  }), 403, 'CSRF request with foreign Origin is denied');
   const exportedB = await request('GET', '/api/export', undefined, b.cookie);
   expectStatus(exportedB, 200, 'B export');
   assert.ok(!exportedB.data.plans.some(p => p.id === planId), 'B export must exclude A plan');
@@ -119,7 +154,33 @@ async function main() {
   assert.ok(!bExport.data.plans.some(p => p.id === planId), 'B export must exclude A plan');
   expectStatus(await request('POST', '/api/auth/logout', {}, a.cookie), 200, 'A logout');
   expectStatus(await request('GET', '/api/plans', undefined, a.cookie), 401, 'revoked A cookie');
-  console.log('PASS: A/B both directions, forged owner and header, scoped export, anonymous 401, logout revocation');
+  // Password rotation must invalidate every existing session, including other devices.
+  const change = await request('POST', '/api/auth/change-password', {
+    current_password: pass, new_password: 'New-test-only-Password-98765!'
+  }, b.cookie);
+  expectStatus(change, 200, 'B password change');
+  expectStatus(await request('GET', '/api/plans', undefined, b.cookie), 401,
+    'B prior session revoked on password change');
+  expectStatus(await request('POST', '/api/auth/login', {
+    email: emailB, password: pass
+  }), 401, 'B previous password rejected');
+  const afterChange = await request('POST', '/api/auth/login', {
+    email: emailB, password: 'New-test-only-Password-98765!'
+  });
+  expectStatus(afterChange, 200, 'B login after rotation');
+  assert.ok(afterChange.cookie, 'new session cookie is issued');
+  expectStatus(await request('POST', '/api/auth/delete-account', {
+    password: 'New-test-only-Password-98765!'
+  }, afterChange.cookie), 200, 'B delete account');
+  expectStatus(await request('GET', '/api/plans', undefined, afterChange.cookie), 401,
+    'deleted B session rejected');
+  const survivingAPlan = await pool.query('SELECT 1 FROM plans WHERE id=$1', [planId]);
+  assert.equal(survivingAPlan.rowCount, 1, 'B deletion does not delete A plans');
+  const remainingBPlan = await pool.query('SELECT 1 FROM plans WHERE id=$1', [createdB.data.id]);
+  assert.equal(remainingBPlan.rowCount, 0, 'B deletion removes only own plans');
+  console.log('PASS: cross-account reads/writes/forgeries, CSRF, rotation, deletion, logout');
+  console.log('No production environment or data was used.');
+
   console.log('Note: test creates disposable test records; no production data is touched.');
 }
 main().catch(err => { console.error('HTTP integration FAILED:', err.message); process.exitCode = 1; })
