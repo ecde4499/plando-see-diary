@@ -4,7 +4,8 @@ const express = require('express');
 const helmet = require('helmet');
 const { pool } = require('./db');
 const { computeSummary } = require('./aggregate');
-const { createAuthRouter } = require('./auth');
+const { createAuthRouter, requireAuth } = require('./auth');
+const { createScopedReadRouter } = require('./scoped-read');
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -17,9 +18,10 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 // T07: Auth endpoints are available only on the development branch.
 // Legacy data routes below are not yet tenant-scoped: DO NOT DEPLOY until isolated.
 app.use('/api/auth', createAuthRouter(express, pool));
+app.use('/api', createScopedReadRouter(express, pool, requireAuth));
 
-// Fail closed: until every legacy data query is scoped to req.authUser,
-// do not expose the T06 data APIs from the T07 branch.
+// Fail closed: scoped GET endpoints are handled above; all remaining legacy
+// data routes (including writes) are blocked until owner checks are implemented.
 app.use('/api', (req, res, next) => {
   if (req.path === '/health') return next();
   return res.status(503).json({ error: '과제7 데이터 API는 계정별 접근 제한 구현 중입니다.' });
