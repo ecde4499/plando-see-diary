@@ -4,6 +4,15 @@
 function createScopedWriteRouter(express, pool, requireAuth) {
   const router = express.Router();
   router.use(requireAuth(pool));
+  // Cookie-authenticated mutations must originate from this application.
+  router.use((req, res, next) => {
+    const origin = req.get('origin');
+    let parsed;
+    try { parsed = new URL(origin); } catch { return res.status(403).json({ error: '요청 출처를 확인할 수 없습니다.' }); }
+    const expected = process.env.PUBLIC_ORIGIN || `${req.protocol}://${req.get('host')}`;
+    if (parsed.origin !== expected) return res.status(403).json({ error: '허용되지 않은 요청 출처입니다.' });
+    next();
+  });
   const priorities = new Set(['낮음', '보통', '높음']);
   const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
   const int0 = (v) => Number.isInteger(v) && v >= 0;
