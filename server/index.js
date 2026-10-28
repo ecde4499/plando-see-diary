@@ -43,6 +43,17 @@ app.get('/diary', requireAuth(pool), (_req, res, next) => {
 
 // T07: Auth endpoints are available only on the development branch.
 // Legacy data routes below are not yet tenant-scoped: DO NOT DEPLOY until isolated.
+// The readiness endpoint must precede routers that enforce login globally.
+// Otherwise unauthenticated CI readiness probes receive 401 even when DB is ready.
+app.get('/api/health', async (_req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ ok: true, database: 'postgresql', timeZone: 'Asia/Seoul' });
+  } catch (e) {
+    res.status(503).json({ ok: false, error: 'DB 연결 실패' });
+  }
+});
+
 app.use('/api/auth', createAuthRouter(express, pool));
 app.use('/api', createScopedReadRouter(express, pool, requireAuth));
 app.use('/api', createScopedWriteRouter(express, pool, requireAuth));
@@ -72,14 +83,6 @@ function bad(res, message, status = 400) {
   return res.status(status).json({ error: message });
 }
 
-app.get('/api/health', async (_req, res) => {
-  try {
-    await pool.query('SELECT 1');
-    res.json({ ok: true, database: 'postgresql', timeZone: 'Asia/Seoul' });
-  } catch (e) {
-    res.status(503).json({ ok: false, error: 'DB 연결 실패' });
-  }
-});
 
 app.get('/api/plans', async (_req, res, next) => {
   try {
