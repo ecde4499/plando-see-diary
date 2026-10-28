@@ -1,0 +1,13 @@
+[hidden] { display: none !important; }
+.t07-main { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; }
+.t07-card { width: min(100%, 470px); margin: auto; }
+.t07-card h1 { margin: 8px 0; font-size: clamp(26px, 4vw, 36px); }
+.t07-card .muted { line-height: 1.7; }
+.auth-mode { margin: 22px 0 20px; }
+.auth-mode .button { flex: 1; }
+.t07-submit { width: 100%; }
+.t07-footnote { margin-top: 22px; font-size: 12px; }
+.auth-error { color: #8d3434; background: #fff0ed; padding: 10px 12px; border-radius: 10px; font-weight: 700; }
+.t07-link { display: inline-flex; justify-content: center; align-items: center; text-decoration: none; }
+.t07-account { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.t07-account-email { overflow-wrap: anywhere; font-size: 13px; }
