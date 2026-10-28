@@ -22,11 +22,16 @@ app.get('/', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, '..', 'public', 't07-login.html'));
 });
+app.get('/account', requireAuth(pool), (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.sendFile(path.join(__dirname, '..', 'public', 't07-settings.html'));
+});
 app.get('/diary', requireAuth(pool), (_req, res, next) => {
   try {
     const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
     // Do not display T06's historical "no login" warning inside the T07 diary.
     const served = html.replace('class="public-warning"', 'class="public-warning hidden"')
+      .replace('</header>', '<a href="/account" class="button secondary">계정 설정</a></header>')
       .replace('</body>', '<link rel="stylesheet" href="/t07-auth.css" /><script src="/t07-account.js" defer></script></body>');
     res.setHeader('Cache-Control', 'no-store');
     res.type('html').send(served);
