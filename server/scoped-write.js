@@ -9,8 +9,12 @@ function createScopedWriteRouter(express, pool, requireAuth) {
     const origin = req.get('origin');
     let parsed;
     try { parsed = new URL(origin); } catch { return res.status(403).json({ error: '요청 출처를 확인할 수 없습니다.' }); }
-    const expected = process.env.PUBLIC_ORIGIN || `${req.protocol}://${req.get('host')}`;
-    if (parsed.origin !== expected) return res.status(403).json({ error: '허용되지 않은 요청 출처입니다.' });
+    const expected = process.env.PUBLIC_ORIGIN;
+    if ((expected && parsed.origin !== new URL(expected).origin) ||
+        (!expected && (parsed.host !== req.get('host') ||
+          (process.env.NODE_ENV === 'production' && parsed.protocol !== 'https:')))) {
+      return res.status(403).json({ error: '허용되지 않은 요청 출처입니다.' });
+    }
     next();
   });
   const priorities = new Set(['낮음', '보통', '높음']);
