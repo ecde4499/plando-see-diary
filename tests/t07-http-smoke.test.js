@@ -36,6 +36,14 @@ test('T07 HTTP smoke: login entry and unauthenticated API denial (no DB access)'
     const login = await fetch(base + '/');
     assert.equal(login.status, 200);
     assert.match(await login.text(), /id="authForm"/);
+    // No DB exists in this smoke fixture, so health must report a DB error,
+    // NOT a login error. This catches a globally mounted auth middleware
+    // intercepting the readiness check.
+    const health = await fetch(base + '/api/health');
+    assert.equal(health.status, 503, 'no DB should mean 503, never 401');
+    const healthBody = await health.json();
+    assert.equal(healthBody.error, 'DB 연결 실패');
+    assert.equal(healthBody.ok, false);
     const unauth = await fetch(base + '/api/plans');
     assert.equal(unauth.status, 401);
     const exportResponse = await fetch(base + '/api/export');
@@ -45,7 +53,7 @@ test('T07 HTTP smoke: login entry and unauthenticated API denial (no DB access)'
     assert.equal(diary.headers.get('location'), '/');
     const previous = await fetch(base + '/index.html', { redirect: 'manual' });
     assert.equal(previous.status, 302);
-    console.log('HTTP smoke PASS without connecting to a database');
+    console.log('HTTP smoke PASS: unauthenticated health returns database status, not 401');
   } finally {
     child.kill('SIGTERM');
   }
