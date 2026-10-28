@@ -19,6 +19,19 @@ function createScopedReadRouter(express, pool, requireAuth) {
     try { await fn(req, res); } catch (error) { next(error); }
   };
   const owner = (req) => req.authUser.id;
+  const ensureOwnedPlan = async (req, res, id) => {
+    const validId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id));
+    if (!validId) {
+      res.status(404).json({ error: '계획을 찾을 수 없습니다.' });
+      return false;
+    }
+    const found = await pool.query('SELECT 1 FROM plans WHERE id=$1 AND owner_user_id=$2', [id, owner(req)]);
+    if (!found.rowCount) {
+      res.status(404).json({ error: '계획을 찾을 수 없습니다.' });
+      return false;
+    }
+    return true;
+  };
 
   router.get('/plans', run(async (req, res) => {
     const { rows } = await pool.query(`
@@ -31,6 +44,7 @@ function createScopedReadRouter(express, pool, requireAuth) {
   }));
 
   router.get('/plans/:id/revisions', run(async (req, res) => {
+    if (!(await ensureOwnedPlan(req, res, req.params.id))) return;
     const { rows } = await pool.query(`
       SELECT v.* FROM plan_revisions v JOIN plans p ON p.id=v.plan_id
       WHERE v.plan_id=$1 AND p.owner_user_id=$2 ORDER BY v.revision_no DESC`,
@@ -79,6 +93,7 @@ function createScopedReadRouter(express, pool, requireAuth) {
   }));
 
   router.get('/reflections/:planId', run(async (req, res) => {
+    if (!(await ensureOwnedPlan(req, res, req.params.planId))) return;
     const { rows } = await pool.query(`
       SELECT r.* FROM reflections r JOIN plans p ON p.id=r.source_plan_id
       WHERE r.source_plan_id=$1 AND p.owner_user_id=$2 ORDER BY r.created_at DESC`,
@@ -87,6 +102,7 @@ function createScopedReadRouter(express, pool, requireAuth) {
   }));
 
   router.get('/summary/:planId', run(async (req, res) => {
+    if (!(await ensureOwnedPlan(req, res, req.params.planId))) return;
     const values = [req.params.planId, owner(req)];
     const { rows: tasks } = await pool.query(`
       SELECT t.* FROM tasks t JOIN plans p ON p.id=t.plan_id
@@ -99,6 +115,7 @@ function createScopedReadRouter(express, pool, requireAuth) {
 
   router.get('/summary/:planId/evidence/:kind', run(async (req, res) => {
     const { kind, planId } = req.params;
+    if (!(await ensureOwnedPlan(req, res, planId))) return;
     const common = 't.plan_id=$1 AND p.owner_user_id=$2 AND t.deleted_at IS NULL';
     const taskFrom = 'tasks t JOIN plans p ON p.id=t.plan_id';
     const queries = {
