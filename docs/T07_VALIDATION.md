@@ -23,13 +23,22 @@ npm test
 ```
 `npm test`에는 기존 규칙 테스트, 인증 로직 구조 검사, 실제 HTTP 요청을 보내는 비인증 접근 smoke 검사가 포함됨. smoke 검사는 접속 불가능한 임시 DB 주소를 강제로 사용하므로 운영 DB를 조회하거나 변경하지 않음. **테스트 통과는 A/B DB 격리 실측을 의미하지 않음.**
 
+## GitHub Actions 전용 DB 자동 검증
+- `.github/workflows/t07-verify.yml`은 `assignment-7` 푸시 시 두 검증 작업을 실행하도록 구성함.
+- `unit-and-http-smoke`: `npm ci`, `npm test`. 실제 서버 기반 비로그인 401 및 화면 이동 검사 포함.
+- `isolated-postgres-http`: 매 실행마다 별도의 GitHub Actions `postgres:16` 서비스에서 `plando_test` 데이터베이스를 준비하고 `npm run test:http` 실행.
+- 이 테스트는 저장소에 등록된 Supabase/Render 비밀 환경변수를 읽지 않으며 운영 DB에 연결하지 않음.
+- JSON 증거: Actions 실행 결과 → `isolated-postgres-http` 작업 → **Artifacts** → `t07-http-evidence`. 케이스별 기대/실제 HTTP 상태와 검사 시각만 기록하며 이메일, 비밀번호, 쿠키 및 토큰을 기록하지 않음.
+- **CI 상태는 실제 GitHub Actions 실행 결과로 확인**해야 하며, 설정 파일 생성만으로 PASS로 간주하지 않음.
+- 별도 DB에서 전체 DB 마이그레이션과 계정별 데이터 처리를 검증하더라도 운영 이전은 별도 승인과 백업이 필요함.
+
 ## 별도의 A/B 실제 HTTP 검사 (옵션, 별도 DB가 있어야 실행 가능)
 ```bash
 # 운영 DATABASE_URL과 다른 폐기 가능한 PostgreSQL 데이터베이스를 준비
 # 데이터베이스 이름에 _test가 포함돼야 함 (예: plando_test)
 TEST_DATABASE_URL="postgres://.../plando_test" npm run test:http
 ```
-실행 스크립트는 `db/schema.sql`과 `db/migrations/007_auth_foundation.sql`을 해당 **테스트 DB**에 적용하고 실제 테스트 계정 및 기록을 만듦. 운영 Supabase 주소, 운영 DB 별칭, 기존 데이터가 있는 DB는 절대 사용 금지. 스크립트는 A/B 양방향의 조회·수정·삭제 일부 및 위조 소유자 ID와 헤더를 검사하지만, 전체 엔드포인트와 모든 공격 케이스를 망라하지 않음. 별도 DB에서 실제 결과 기록이 필요함.
+기본적으로 로컬 테스트 DB만 허용함. 원격 테스트 DB를 사용하려면 폐기 가능한 테스트 DB인지 재확인한 뒤 명시적 옵트인이 필요함. 실행 스크립트는 `db/schema.sql`과 `db/migrations/007_auth_foundation.sql`을 해당 **테스트 DB**에 적용하고 실제 테스트 계정 및 기록을 만듦. 운영 Supabase 주소, 운영 DB 별칭, 기존 데이터가 있는 DB는 절대 사용 금지. 스크립트는 A/B 양방향의 조회·수정·삭제 일부 및 위조 소유자 ID와 헤더를 검사하지만, 전체 엔드포인트와 모든 공격 케이스를 망라하지 않음. 별도 DB에서 실제 결과 기록이 필요함.
 
 ## 서버 인증 설계
 - 비밀번호: Node 내장 `crypto.scrypt`, 사용자별 무작위 salt, 해시만 저장.
