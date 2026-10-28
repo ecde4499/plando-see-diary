@@ -107,7 +107,7 @@ function createScopedReadRouter(express, pool, requireAuth) {
       overdueCount: `SELECT t.* FROM ${taskFrom} WHERE ${common} AND t.status<>'완료' AND t.due_date IS NOT NULL AND t.due_date < $3::date ORDER BY t.due_date,t.created_at,t.id`,
       blockedCount: `SELECT DISTINCT ON(t.id) t.*,e.blocked_reason FROM ${taskFrom} JOIN execution_logs e ON e.task_id=t.id WHERE ${common} AND length(trim(e.blocked_reason))>0 ORDER BY t.id,e.created_at`,
       estimatedMinutes: `SELECT t.* FROM ${taskFrom} WHERE ${common} ORDER BY t.created_at,t.id`,
-      actualMinutes: `SELECT e.*,t.title AS task_title FROM execution_logs e JOIN ${taskFrom} ON t.id=e.task_id WHERE ${common} ORDER BY e.started_at,e.id`
+      actualMinutes: `SELECT e.*,t.title AS task_title FROM execution_logs e JOIN tasks t ON t.id=e.task_id JOIN plans p ON p.id=t.plan_id WHERE ${common} ORDER BY e.started_at,e.id`
     };
     if (!Object.hasOwn(queries, kind)) return res.status(400).json({ error: '지원하지 않는 근거 유형입니다.' });
     const params = kind === 'overdueCount' ? [planId, owner(req), todayInSeoul()] : [planId, owner(req)];
