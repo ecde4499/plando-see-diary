@@ -88,9 +88,38 @@ async function main() {
   const exportedB = await request('GET', '/api/export', undefined, b.cookie);
   expectStatus(exportedB, 200, 'B export');
   assert.ok(!exportedB.data.plans.some(p => p.id === planId), 'B export must exclude A plan');
+  // Check the reverse direction, forged owner IDs and plan-specific reads.
+  const createdB = await request('POST', '/api/plans', {
+    ...planBody, title: 'B private plan', owner_user_id: a.data.user.id
+  }, b.cookie);
+  expectStatus(createdB, 201, 'B create own plan despite forged owner in body');
+  assert.equal(createdB.data.owner_user_id, b.data.user.id, 'server controls plan owner');
+  expectStatus(await request('GET', '/api/summary/' + createdB.data.id, undefined, a.cookie),
+    404, 'A cannot read B summary');
+  expectStatus(await request('GET', '/api/plans/' + createdB.data.id + '/revisions', undefined, a.cookie),
+    404, 'A cannot read B plan history');
+  expectStatus(await request('PUT', '/api/plans/' + createdB.data.id, planBody, a.cookie, {
+    'X-User-Id': b.data.user.id
+  }), 404, 'A forged header cannot edit B plan');
+  const bTask = await request('POST', '/api/tasks', {
+    plan_id: createdB.data.id, title: 'B task', priority: '보통', estimated_minutes: 1
+  }, b.cookie);
+  expectStatus(bTask, 201, 'B create task');
+  expectStatus(await request('DELETE', '/api/tasks/' + bTask.data.id, undefined, a.cookie),
+    404, 'A cannot delete B task');
+  expectStatus(await request('PUT', '/api/tasks/' + aTask.data.id, {
+    plan_id: createdB.data.id, title: 'cross account move',
+    priority: '보통', estimated_minutes: 1
+  }, a.cookie), 404, 'A cannot move own task into B plan');
+  const aExport = await request('GET', '/api/export', undefined, a.cookie);
+  expectStatus(aExport, 200, 'A export');
+  assert.ok(!aExport.data.plans.some(p => p.id === createdB.data.id), 'A export must exclude B plan');
+  const bExport = await request('GET', '/api/export', undefined, b.cookie);
+  expectStatus(bExport, 200, 'B export after create');
+  assert.ok(!bExport.data.plans.some(p => p.id === planId), 'B export must exclude A plan');
   expectStatus(await request('POST', '/api/auth/logout', {}, a.cookie), 200, 'A logout');
   expectStatus(await request('GET', '/api/plans', undefined, a.cookie), 401, 'revoked A cookie');
-  console.log('PASS: signup A/B, anonymous 401, cross-account read/update/delete 404, export isolation, logout revocation');
+  console.log('PASS: A/B both directions, forged owner and header, scoped export, anonymous 401, logout revocation');
   console.log('Note: test creates disposable test records; no production data is touched.');
 }
 main().catch(err => { console.error('HTTP integration FAILED:', err.message); process.exitCode = 1; })
