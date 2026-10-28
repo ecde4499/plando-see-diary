@@ -1,10 +1,10 @@
 'use strict';
 
-// T07 authentication module. This module is intentionally NOT mounted yet.
-// Integration must protect every existing data route before public deployment.
+// T07 authentication module. Auth and tenant-scoped routes are mounted on assignment-7 only.
 const crypto = require('node:crypto');
 const { promisify } = require('node:util');
 const scrypt = promisify(crypto.scrypt);
+const { requireSameOrigin } = require('./origin');
 
 const COOKIE_NAME = 'pds_session';
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -72,6 +72,8 @@ async function issueSession(req, res, pool, userId) {
 
 function createAuthRouter(express, pool) {
   const router = express.Router();
+  const dummyHashPromise = hashPassword('constant-dummy-password-never-used');
+  router.use((req, res, next) => req.method === 'GET' ? next() : requireSameOrigin(req, res, next));
   router.post('/register', async (req, res, next) => {
     const email = normalizeEmail(req.body?.email);
     const password = req.body?.password;
@@ -81,13 +83,25 @@ function createAuthRouter(express, pool) {
     }
     try {
       const passwordHash = await hashPassword(password);
-      const result = await pool.query(
-        'INSERT INTO app_users(email,password_hash) VALUES($1,$2) ON CONFLICT(email) DO NOTHING RETURNING id,email',
-        [email, passwordHash]
-      );
-      if (!result.rowCount) return res.status(409).json({ error: '이미 등록된 이메일입니다.' });
-      await issueSession(req, res, pool, result.rows[0].id);
-      res.status(201).json({ user: result.rows[0] });
+      const client = await pool.connect();
+      let user;
+      try {
+        await client.query('BEGIN');
+        const result = await client.query(
+          'INSERT INTO app_users(email,password_hash) VALUES($1,$2) ON CONFLICT(email) DO NOTHING RETURNING id,email',
+          [email, passwordHash]
+        );
+        if (result.rowCount) {
+          user = result.rows[0];
+          await issueSession(req, res, client, user.id);
+        }
+        await client.query('COMMIT');
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      } finally { client.release(); }
+      if (!user) return res.status(409).json({ error: '이미 등록된 이메일입니다.' });
+      res.status(201).json({ user });
     } catch (error) { next(error); }
   });
   router.post('/login', async (req, res, next) => {
@@ -99,8 +113,7 @@ function createAuthRouter(express, pool) {
     try {
       const result = await pool.query('SELECT id,email,password_hash FROM app_users WHERE email=$1', [email]);
       // Constant-work password check for unknown accounts.
-      const fakeHash = await hashPassword('constant-dummy-password-never-used');
-      const matched = await verifyPassword(password, result.rows[0]?.password_hash || fakeHash);
+      const matched = await verifyPassword(password, result.rows[0]?.password_hash || await dummyHashPromise);
       if (!result.rowCount || !matched) return res.status(401).json({ error: LOGIN_ERROR });
       await issueSession(req, res, pool, result.rows[0].id);
       res.json({ user: { id: result.rows[0].id, email: result.rows[0].email } });
@@ -116,6 +129,56 @@ function createAuthRouter(express, pool) {
       res.clearCookie(COOKIE_NAME, { path: '/', httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' });
       res.json({ ok: true });
     } catch (error) { next(error); }
+  });
+  router.post('/change-password', requireAuth(pool), async (req, res, next) => {
+    const oldPassword = req.body?.current_password;
+    const newPassword = req.body?.new_password;
+    if (typeof oldPassword !== 'string' || typeof newPassword !== 'string' ||
+        newPassword.length < 12 || Buffer.byteLength(newPassword, 'utf8') > 1024) {
+      return res.status(400).json({ error: '현재 비밀번호와 새 비밀번호(12자 이상)를 확인하세요.' });
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query('SELECT password_hash FROM app_users WHERE id=$1 FOR UPDATE', [req.authUser.id]);
+      if (!result.rowCount || !(await verifyPassword(oldPassword, result.rows[0].password_hash))) {
+        await client.query('ROLLBACK');
+        return res.status(401).json({ error: '현재 비밀번호가 일치하지 않습니다.' });
+      }
+      const passwordHash = await hashPassword(newPassword);
+      await client.query('UPDATE app_users SET password_hash=$2,password_changed_at=now(),updated_at=now() WHERE id=$1',
+        [req.authUser.id, passwordHash]);
+      await client.query('UPDATE auth_sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL',
+        [req.authUser.id]);
+      await client.query('COMMIT');
+      res.clearCookie(COOKIE_NAME, { path: '/', httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' });
+      res.json({ ok: true, login_required: true });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      next(error);
+    } finally { client.release(); }
+  });
+  router.post('/delete-account', requireAuth(pool), async (req, res, next) => {
+    const password = req.body?.password;
+    if (typeof password !== 'string') return res.status(400).json({ error: '비밀번호 확인이 필요합니다.' });
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query('SELECT password_hash FROM app_users WHERE id=$1 FOR UPDATE', [req.authUser.id]);
+      if (!result.rowCount || !(await verifyPassword(password, result.rows[0].password_hash))) {
+        await client.query('ROLLBACK');
+        return res.status(401).json({ error: '비밀번호가 일치하지 않습니다.' });
+      }
+      // Owned plans are the root of all T06 child tables (cascade); unowned T06 records stay untouched.
+      await client.query('DELETE FROM plans WHERE owner_user_id=$1', [req.authUser.id]);
+      await client.query('DELETE FROM app_users WHERE id=$1', [req.authUser.id]);
+      await client.query('COMMIT');
+      res.clearCookie(COOKIE_NAME, { path: '/', httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' });
+      res.json({ ok: true });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      next(error);
+    } finally { client.release(); }
   });
   router.get('/me', requireAuth(pool), (req, res) => {
     res.json({ user: req.authUser });
