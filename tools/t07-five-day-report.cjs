@@ -67,11 +67,14 @@ function computeFiveDayReport(exportData, dates, planId) {
     if (minutes > 480) row.outlier_over_480m++;
   }
   const days = [...byDay.values()];
-  const average = set => set.every(d => d.actual_minutes !== null)
-    ? oneDecimal(set.reduce((sum, d) => sum + d.actual_minutes, 0) / set.length) : null;
-  const before = average(days.slice(0, 2));
-  const after = average(days.slice(2));
-  const delta = before === null || after === null ? null : oneDecimal(after - before);
+  const averageRaw = set => set.every(d => d.actual_minutes !== null)
+    ? set.reduce((sum, d) => sum + d.actual_minutes, 0) / set.length : null;
+  const beforeRaw = averageRaw(days.slice(0, 2));
+  const afterRaw = averageRaw(days.slice(2));
+  const deltaRaw = beforeRaw === null || afterRaw === null ? null : afterRaw - beforeRaw;
+  const before = beforeRaw === null ? null : oneDecimal(beforeRaw);
+  const after = afterRaw === null ? null : oneDecimal(afterRaw);
+  const delta = deltaRaw === null ? null : oneDecimal(deltaRaw);
   return {
     question: '선택한 계획에서 오늘 실제 실행한 작업 시간은 총 몇 분인가?',
     unit: 'minutes', time_zone: 'Asia/Seoul', week_starts: 'Monday',
@@ -80,7 +83,7 @@ function computeFiveDayReport(exportData, dates, planId) {
     mean_before_days_1_2: before,
     mean_after_days_3_5: after,
     delta_minutes_per_day: delta,
-    change_percent: delta === null || before === 0 ? null : oneDecimal(delta / before * 100),
+    change_percent: deltaRaw === null || beforeRaw === 0 ? null : oneDecimal(deltaRaw / beforeRaw * 100),
     notes: 'Missing days are NA, exact duplicate rows are counted once, >480 minute sessions are flagged but included.'
   };
 }
