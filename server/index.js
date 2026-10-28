@@ -6,6 +6,7 @@ const { pool } = require('./db');
 const { computeSummary } = require('./aggregate');
 const { createAuthRouter, requireAuth } = require('./auth');
 const { createScopedReadRouter } = require('./scoped-read');
+const { createScopedWriteRouter } = require('./scoped-write');
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -19,9 +20,10 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 // Legacy data routes below are not yet tenant-scoped: DO NOT DEPLOY until isolated.
 app.use('/api/auth', createAuthRouter(express, pool));
 app.use('/api', createScopedReadRouter(express, pool, requireAuth));
+app.use('/api', createScopedWriteRouter(express, pool, requireAuth));
 
-// Fail closed: scoped GET endpoints are handled above; all remaining legacy
-// data routes (including writes) are blocked until owner checks are implemented.
+// Fail closed: scoped endpoints are handled above; all remaining legacy
+// routes stay blocked, including any unsupported operation.
 app.use('/api', (req, res, next) => {
   if (req.path === '/health') return next();
   return res.status(503).json({ error: '과제7 데이터 API는 계정별 접근 제한 구현 중입니다.' });
