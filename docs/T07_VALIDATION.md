@@ -29,7 +29,7 @@ npm test
 # 데이터베이스 이름에 _test가 포함돼야 함 (예: plando_test)
 TEST_DATABASE_URL="postgres://.../plando_test" npm run test:http
 ```
-실행 스크립트는 `db/schema.sql`과 `db/migrations/007_auth_foundation.sql`을 해당 **테스트 DB**에 적용하고 실제 테스트 계정 및 기록을 만듦. 운영 Supabase 주소, 운영 DB 별칭, 기존 데이터가 있는 DB는 절대 사용 금지. 스크립트는 현재 A→B 또는 B→A 모든 경우를 망라하지 않으므로 테스트 케이스 확장과 실제 결과 기록이 필요함.
+실행 스크립트는 `db/schema.sql`과 `db/migrations/007_auth_foundation.sql`을 해당 **테스트 DB**에 적용하고 실제 테스트 계정 및 기록을 만듦. 운영 Supabase 주소, 운영 DB 별칭, 기존 데이터가 있는 DB는 절대 사용 금지. 스크립트는 A/B 양방향의 조회·수정·삭제 일부 및 위조 소유자 ID와 헤더를 검사하지만, 전체 엔드포인트와 모든 공격 케이스를 망라하지 않음. 별도 DB에서 실제 결과 기록이 필요함.
 
 ## 서버 인증 설계
 - 비밀번호: Node 내장 `crypto.scrypt`, 사용자별 무작위 salt, 해시만 저장.
