@@ -44,7 +44,10 @@ async function request(method, route, body, cookie, extra = {}) {
   const data = await response.json();
   return { status: response.status, data, cookie: response.headers.get('set-cookie')?.split(';')[0] };
 }
+const assertions = [];
 function expectStatus(result, code, description) {
+  assertions.push({ case: description, expected_http: code, actual_http: result.status,
+    outcome: result.status === code ? 'PASS' : 'FAIL' });
   assert.equal(result.status, code, `${description}: expected ${code}, got ${result.status}; ${JSON.stringify(result.data)}`);
 }
 async function main() {
@@ -185,6 +188,16 @@ async function main() {
 }
 main().catch(err => { console.error('HTTP integration FAILED:', err.message); process.exitCode = 1; })
   .finally(async () => {
+    const folder = path.join(root, 'test-results');
+    fs.mkdirSync(folder, { recursive: true });
+    fs.writeFileSync(path.join(folder, 't07-http-evidence.json'), JSON.stringify({
+      tested_at_utc: new Date().toISOString(),
+      target: 'disposable test-only PostgreSQL',
+      result: process.exitCode ? 'FAIL' : 'PASS',
+      http_checks: assertions.length,
+      checks: assertions,
+      notes: 'Synthetic accounts only. This report excludes passwords, cookies and tokens.'
+    }, null, 2) + '\n');
     if (child) child.kill('SIGTERM');
     await pool.end();
   });
