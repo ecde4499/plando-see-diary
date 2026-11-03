@@ -83,3 +83,19 @@ test('T07 staging refuses an uninitialized or partially migrated database', asyn
   };
   await assert.rejects(assertStagingSchema(missingOwner), /plans.owner_user_id/);
 });
+
+test('T07 staging may build a fixed pooler URL from a secret password only', () => {
+  const password = 'Secret!@#:%/with?reserved';
+  const result = validateStagingEnv({
+    ...good,
+    T07_STAGING_DATABASE_URL: 'bad-placeholder',
+    T07_STAGING_DB_PASSWORD: password
+  });
+  const parsed = new URL(result.databaseUrl);
+  assert.equal(parsed.hostname, 'aws-0-ap-northeast-2.pooler.supabase.com');
+  assert.equal(decodeURIComponent(parsed.username), 'postgres.rbetvzfagztuctqoavwt');
+  assert.equal(decodeURIComponent(parsed.password), password);
+  assert.equal(parsed.pathname, '/postgres');
+  assert.equal(parsed.port, '5432');
+  assert.ok(!result.databaseUrl.includes(password), 'raw password must be encoded as part of URI');
+});
