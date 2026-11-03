@@ -15,9 +15,17 @@ function validateStagingEnv(env) {
   let database;
   try { database = new URL(env.T07_STAGING_DATABASE_URL); }
   catch { throw new Error('T07 staging database URL is invalid.'); }
-  if (!['postgres:', 'postgresql:'].includes(database.protocol) ||
-      !database.hostname || !database.pathname || database.pathname === '/') {
-    throw new Error('T07 staging database must be a PostgreSQL connection URL with a database name.');
+  if (!['postgres:', 'postgresql:'].includes(database.protocol)) {
+    throw new Error('T07 staging PostgreSQL URL must begin with postgresql:// or postgres://. Set the full Session pooler URI, not a password or hostname alone.');
+  }
+  if (!database.hostname) {
+    throw new Error('T07 staging PostgreSQL URL is missing the database server hostname.');
+  }
+  if (!database.pathname || database.pathname === '/') {
+    throw new Error('T07 staging PostgreSQL URL must include the database name at the end (for example /postgres).');
+  }
+  if (!database.username || !database.password) {
+    throw new Error('T07 staging PostgreSQL URL must include a database username and password. Do not paste these into chat.');
   }
   if (!env.PUBLIC_ORIGIN) {
     throw new Error('PUBLIC_ORIGIN is required so cookie-based mutations verify their origin.');
