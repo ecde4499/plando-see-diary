@@ -22,7 +22,9 @@ function validateStagingEnv(env) {
     throw new Error('T07 staging PostgreSQL URL is missing the database server hostname.');
   }
   if (!database.pathname || database.pathname === '/') {
-    throw new Error('T07 staging PostgreSQL URL must include the database name at the end (for example /postgres).');
+    // The isolated Supabase staging project uses the default PostgreSQL database.
+    // Normalize a missing path without reading or printing database credentials.
+    database.pathname = '/postgres';
   }
   if (!database.username || !database.password) {
     throw new Error('T07 staging PostgreSQL URL must include a database username and password. Do not paste these into chat.');
@@ -50,7 +52,7 @@ function validateStagingEnv(env) {
   if (env.RENDER_EXTERNAL_URL && env.RENDER_EXTERNAL_URL !== env.PUBLIC_ORIGIN) {
     throw new Error('PUBLIC_ORIGIN must match the new staging service external URL.');
   }
-  return { databaseUrl: env.T07_STAGING_DATABASE_URL, publicOrigin: origin.origin };
+  return { databaseUrl: database.toString(), publicOrigin: origin.origin };
 }
 
 const REQUIRED_TABLES = Object.freeze([
