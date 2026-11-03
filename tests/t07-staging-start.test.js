@@ -39,6 +39,8 @@ test('T07 staging guard verifies exact HTTPS PUBLIC_ORIGIN', () => {
 test('T07 staging guard rejects invalid database URLs without exposing their values', () => {
   assert.throws(() => validateStagingEnv({ ...good, T07_STAGING_DATABASE_URL: 'https://not-postgresql.example/test' }), /PostgreSQL/);
   assert.throws(() => validateStagingEnv({ ...good, T07_STAGING_DATABASE_URL: 'not-a-url' }), /invalid/);
+  assert.throws(() => validateStagingEnv({ ...good, T07_STAGING_DATABASE_URL: 'postgresql://user:secret@staging-db.invalid/' }), /database name/);
+  assert.throws(() => validateStagingEnv({ ...good, T07_STAGING_DATABASE_URL: 'postgresql://user@staging-db.invalid/staging' }), /username and password/);
 });
 
 test('T07 staging schema check requires all T06 and T07 tables and owner column', async () => {
