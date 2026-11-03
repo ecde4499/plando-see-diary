@@ -188,6 +188,24 @@ async function main() {
   assert.ok(!bExport.data.plans.some(p => p.id === planId), 'B export must exclude A plan');
   // Rehearse transferring ONLY the explicitly selected legacy fixture.
   // This function has no executable CLI and refuses non-test databases.
+  // A link from an unselected plan must prevent a partial/mixed-owner transfer.
+  const externalLegacy = await pool.query(`INSERT INTO plans
+    (title,start_date,end_date,priority,success_criteria,estimated_minutes)
+    VALUES($1,$2,$3,$4,$5,$6) RETURNING id`,
+  ['External T06 fixture', '2026-10-01', '2026-10-31', '보통', 'linked', 1]);
+  const externalReflection = await pool.query(`
+    INSERT INTO reflections(source_plan_id,improvement_text,next_plan_id)
+    VALUES($1,$2,$3) RETURNING id`,
+  [externalLegacy.rows[0].id, 'test-only linked note', legacyId]);
+  await assert.rejects(
+    previewOrRehearseTransfer(pool, {
+      targetUserId: a.data.user.id, planIds: [legacyId]
+    }),
+    /cross-boundary reflection links/,
+    'a partial transfer of linked plans must be refused'
+  );
+  await pool.query('DELETE FROM reflections WHERE id=$1', [externalReflection.rows[0].id]);
+  await pool.query('DELETE FROM plans WHERE id=$1', [externalLegacy.rows[0].id]);
   const preview = await previewOrRehearseTransfer(pool, {
     targetUserId: a.data.user.id, planIds: [legacyId]
   });
