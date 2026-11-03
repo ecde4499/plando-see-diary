@@ -45,9 +45,41 @@ function validateStagingEnv(env) {
   return { databaseUrl: env.T07_STAGING_DATABASE_URL, publicOrigin: origin.origin };
 }
 
-function start() {
+const REQUIRED_TABLES = Object.freeze([
+  'plans', 'plan_revisions', 'tasks', 'execution_logs',
+  'completion_events', 'reflections', 'app_users', 'auth_sessions'
+]);
+
+async function assertStagingSchema(pool) {
+  // Read-only schema inspection. Do not initialize or alter database objects here.
+  const { rows } = await pool.query(`
+    SELECT table_name FROM information_schema.tables
+    WHERE table_schema='public' AND table_type='BASE TABLE'
+      AND table_name=ANY($1::text[])`, [REQUIRED_TABLES]);
+  const found = new Set(rows.map(row => row.table_name));
+  const missing = REQUIRED_TABLES.filter(table => !found.has(table));
+  if (missing.length) {
+    throw new Error('Staging database schema is incomplete (missing: ' + missing.join(', ') +
+      '). Apply T06 and T07 SQL to the separate staging DB before starting.');
+  }
+  const owner = await pool.query(`
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='plans' AND column_name='owner_user_id'`);
+  if (owner.rowCount !== 1) {
+    throw new Error('Staging database is missing plans.owner_user_id.');
+  }
+}
+
+async function start() {
   require('dotenv').config();
   const result = validateStagingEnv(process.env);
+  const { Pool } = require('pg');
+  const pool = new Pool({
+    connectionString: result.databaseUrl,
+    ssl: process.env.DATABASE_SSL === 'false' ? false : { rejectUnauthorized: false }
+  });
+  try { await assertStagingSchema(pool); }
+  finally { await pool.end(); }
   // index.js imports server/db.js; supply only the explicitly approved staging URL.
   process.env.DATABASE_URL = result.databaseUrl;
   process.env.NODE_ENV = 'production';
@@ -55,8 +87,10 @@ function start() {
 }
 
 if (require.main === module) {
-  try { start(); }
-  catch (err) { console.error('T07 staging configuration rejected:', err.message); process.exitCode = 1; }
+  start().catch(err => {
+    console.error('T07 staging startup refused:', err.message);
+    process.exitCode = 1;
+  });
 }
 
-module.exports = { validateStagingEnv };
+module.exports = { validateStagingEnv, assertStagingSchema, REQUIRED_TABLES };
