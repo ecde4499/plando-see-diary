@@ -17,6 +17,10 @@ jobs:
           node-version: '20'
           cache: npm
       - run: npm ci
+      - name: Inventory production dependency advisories (non-blocking)
+        run: |
+          npm audit --omit=dev --json > /tmp/t07-npm-audit.json || true
+          node -e 'const a=require("/tmp/t07-npm-audit.json"); console.log("T07_AUDIT_COUNTS", JSON.stringify(a.metadata?.vulnerabilities || {})); for(const [name,v] of Object.entries(a.vulnerabilities || {})){ console.log("T07_AUDIT_ITEM", JSON.stringify({name,severity:v.severity,direct:v.isDirect,via:(v.via || []).map(x=>typeof x==="string"?x:{title:x.title,url:x.url,range:x.range}),fixAvailable:v.fixAvailable})); }'
       - run: npm test
   isolated-postgres-http:
     runs-on: ubuntu-latest
