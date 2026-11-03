@@ -11,7 +11,8 @@
     "test": "node --test tests/*.test.js",
     "test:http": "node tests/http-isolation.cjs",
     "preflight:t07": "node tools/t07-preflight.cjs",
-    "report:five-days": "node tools/t07-five-day-report.cjs"
+    "report:five-days": "node tools/t07-five-day-report.cjs",
+    "start:t07:staging": "node tools/t07-staging-start.cjs"
   },
   "engines": {
     "node": ">=20"
