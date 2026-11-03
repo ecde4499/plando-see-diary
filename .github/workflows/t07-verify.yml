@@ -61,3 +61,15 @@ jobs:
           path: test-results/t07-http-evidence.json
           if-no-files-found: warn
           retention-days: 14
+
+  staging-public-readonly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Verify staging public HTTP without any authentication or writes
+        run: node tools/t07-live-smoke.cjs
