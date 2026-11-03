@@ -17,7 +17,9 @@ function validateStagingEnv(env) {
     database = new URL(
       'postgresql://postgres.rbetvzfagztuctqoavwt@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres'
     );
-    database.password = env.T07_STAGING_DB_PASSWORD;
+    // URL.password does not encode a literal '%' for non-special protocols.
+    // Encode before assigning so all reserved characters survive pg URL parsing.
+    database.password = encodeURIComponent(env.T07_STAGING_DB_PASSWORD);
   } else {
     if (!env.T07_STAGING_DATABASE_URL) {
       throw new Error('T07_STAGING_DATABASE_URL or T07_STAGING_DB_PASSWORD is required for the isolated staging service.');
