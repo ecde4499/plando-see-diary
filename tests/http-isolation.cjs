@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { Pool } = require('pg');
+const { previewOrRehearseTransfer } = require('../tools/t07-legacy-transfer.cjs');
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url || !/^postgres(ql)?:\/\//.test(url)) {
@@ -185,6 +186,53 @@ async function main() {
   const bExport = await request('GET', '/api/export', undefined, b.cookie);
   expectStatus(bExport, 200, 'B export after create');
   assert.ok(!bExport.data.plans.some(p => p.id === planId), 'B export must exclude A plan');
+  // Rehearse transferring ONLY the explicitly selected legacy fixture.
+  // This function has no executable CLI and refuses non-test databases.
+  const preview = await previewOrRehearseTransfer(pool, {
+    targetUserId: a.data.user.id, planIds: [legacyId]
+  });
+  assert.equal(preview.mode, 'READ_ONLY_PREVIEW');
+  assert.equal(preview.transferred_plan_count, 0);
+  const beforeOwnership = await pool.query('SELECT owner_user_id FROM plans WHERE id=$1', [legacyId]);
+  assert.equal(beforeOwnership.rows[0].owner_user_id, null, 'preview never changes owner');
+  await assert.rejects(
+    previewOrRehearseTransfer(pool, {
+      targetUserId: a.data.user.id, planIds: [legacyId],
+      apply: true, approval: 'not-authorized'
+    }),
+    /Production transfer is disabled/
+  );
+  const staged = await previewOrRehearseTransfer(pool, {
+    targetUserId: a.data.user.id, planIds: [legacyId],
+    apply: true, approval: 'DISPOSABLE_DB_ONLY'
+  });
+  assert.equal(staged.mode, 'STAGING_APPLIED');
+  assert.equal(staged.transferred_plan_count, 1);
+  assert.equal(staged.related_table_counts_preserved, true);
+  const claimedAPlans = await request('GET', '/api/plans', undefined, a.cookie);
+  expectStatus(claimedAPlans, 200, 'A sees staged legacy plan');
+  assert.ok(claimedAPlans.data.some(p => p.id === legacyId), 'staged T06 plan belongs only to A');
+  const claimedTasks = await request('GET', '/api/tasks?plan_id=' + legacyId, undefined, a.cookie);
+  expectStatus(claimedTasks, 200, 'A sees preserved T06 task');
+  assert.equal(claimedTasks.data.length, 1, 'legacy task ID and content remain intact');
+  assert.equal(claimedTasks.data[0].id, legacyTask.rows[0].id);
+  const claimedLogs = await request('GET', '/api/executions?task_id=' + legacyTask.rows[0].id,
+    undefined, a.cookie);
+  expectStatus(claimedLogs, 200, 'A sees preserved T06 execution');
+  assert.equal(claimedLogs.data.length, 1, 'legacy execution row must be preserved');
+  const rejectedBPlans = await request('GET', '/api/plans', undefined, b.cookie);
+  expectStatus(rejectedBPlans, 200, 'B plan listing after transfer');
+  assert.ok(!rejectedBPlans.data.some(p => p.id === legacyId), 'B cannot see A legacy transfer');
+  expectStatus(await request('GET', '/api/summary/' + legacyId, undefined, b.cookie),
+    404, 'B cannot read A transferred T06 summary');
+  await assert.rejects(
+    previewOrRehearseTransfer(pool, {
+      targetUserId: b.data.user.id, planIds: [legacyId],
+      apply: true, approval: 'DISPOSABLE_DB_ONLY'
+    }),
+    /already assigned/,
+    'A second account must not claim the same plan'
+  );
   expectStatus(await request('POST', '/api/auth/logout', {}, a.cookie), 200, 'A logout');
   expectStatus(await request('GET', '/api/plans', undefined, a.cookie), 401, 'revoked A cookie');
   // Password rotation must invalidate every existing session, including other devices.
@@ -211,9 +259,11 @@ async function main() {
   assert.equal(survivingAPlan.rowCount, 1, 'B deletion does not delete A plans');
   const remainingBPlan = await pool.query('SELECT 1 FROM plans WHERE id=$1', [createdB.data.id]);
   assert.equal(remainingBPlan.rowCount, 0, 'B deletion removes only own plans');
-  const unclaimedAfterDeletion = await pool.query('SELECT 1 FROM plans WHERE id=$1', [legacyId]);
-  assert.equal(unclaimedAfterDeletion.rowCount, 1, 'account deletion must preserve unclaimed T06 data');
-  console.log('PASS: cross-account reads/writes/forgeries, CSRF, rotation, deletion, logout');
+  const legacyAfterBDeletion = await pool.query(
+    'SELECT owner_user_id FROM plans WHERE id=$1', [legacyId]);
+  assert.equal(legacyAfterBDeletion.rows[0]?.owner_user_id, a.data.user.id,
+    'B deletion must preserve legacy plans transferred to A');
+  console.log('PASS: A/B isolation, legacy ownership transfer rehearsal, preserved records, CSRF, rotation, deletion, logout');
   console.log('No production environment or data was used.');
 
   console.log('Note: test creates disposable test records; no production data is touched.');
