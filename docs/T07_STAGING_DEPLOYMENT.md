@@ -26,14 +26,15 @@
 | Auto-Deploy | **Off** (수동 배포로 시작) |
 | Health Check Path | `/api/health` |
 | `NODE_ENV` | `production` |
-| `T07_STAGING_DATABASE_URL` | 새로운 과제7 DB의 **서버용** PostgreSQL 연결 문자열 |
+| `T07_STAGING_DB_PASSWORD` | **권장:** 새 과제7 Supabase DB 비밀번호만 Render의 비밀 환경변수로 설정. 주소·포트·DB명·특수문자 인코딩은 시작 코드에서 자동 처리 |
+| `T07_STAGING_DATABASE_URL` | 이전 방식: 전체 DB 연결 문자열. 비밀번호 전용 환경변수가 있으면 이 값은 사용하지 않음 |
 | `DATABASE_SSL` | 새 DB가 TLS를 요구하면 `true`; 로컬 전용 테스트 DB만 `false` |
 | `PUBLIC_ORIGIN` | **새 Render 서비스의 정확한 HTTPS 주소**, 마지막 슬래시 없이 |
 | `T07_STAGING_ACK` | `I_VERIFIED_SEPARATE_DATABASE` |
 
 또한 전용 시작 명령은 앱이 실행되기 전에 새 DB에서 과제6의 6개 테이블, 과제7의 `app_users`·`auth_sessions`, `plans.owner_user_id`가 존재하는지 **읽기 전용으로 확인**한다. 스키마가 불완전하면 배포 시작을 거부하며 자동 마이그레이션하지 않는다.
 
-**스테이징 서비스에는 `DATABASE_URL`을 설정하지 않는다.** 전용 시작 명령이 `T07_STAGING_DATABASE_URL`을 검증한 후 내부적으로만 전달한다. `DATABASE_URL`이 이미 있거나 위 확인 문자열이 없으면 시작을 거부한다.
+**스테이징 서비스에는 `DATABASE_URL`을 설정하지 않는다.** `T07_STAGING_DB_PASSWORD`가 있으면 코드가 `postgres.rbetvzfagztuctqoavwt` 사용자와 서울 Session pooler 호스트 및 `/postgres` 경로를 사용해 연결 문자열을 안전하게 생성한다. 이때 비밀번호는 URL 인코딩되며 로그에는 출력하지 않는다. 이전 `T07_STAGING_DATABASE_URL` 값은 무시하므로 연결 확인 후 제거해도 된다. 두 환경변수가 모두 없거나 `DATABASE_URL`이 별도로 설정되면 시작을 거부한다.
 
 또한 Render에서 제공되는 `RENDER_GIT_BRANCH`, `RENDER_EXTERNAL_URL`, `RENDER_GIT_REPO_SLUG`이 실제 배포 시 알려지면 코드가 각각 브랜치, 서비스 URL, 저장소를 검사한다.
 
