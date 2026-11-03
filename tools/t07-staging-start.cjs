@@ -9,12 +9,22 @@ function validateStagingEnv(env) {
   if (env.DATABASE_URL) {
     throw new Error('Do not supply DATABASE_URL to the staging start command; use only T07_STAGING_DATABASE_URL.');
   }
-  if (!env.T07_STAGING_DATABASE_URL) {
-    throw new Error('T07_STAGING_DATABASE_URL is required for the isolated staging service.');
-  }
   let database;
-  try { database = new URL(env.T07_STAGING_DATABASE_URL); }
-  catch { throw new Error('T07 staging database URL is invalid.'); }
+  if (env.T07_STAGING_DB_PASSWORD) {
+    // The user sets only the database password in the Render secret environment.
+    // A fixed T07-only Supabase pooler URI avoids mistakes with hostnames, path,
+    // and URL-reserved characters in the password.
+    database = new URL(
+      'postgresql://postgres.rbetvzfagztuctqoavwt@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres'
+    );
+    database.password = env.T07_STAGING_DB_PASSWORD;
+  } else {
+    if (!env.T07_STAGING_DATABASE_URL) {
+      throw new Error('T07_STAGING_DATABASE_URL or T07_STAGING_DB_PASSWORD is required for the isolated staging service.');
+    }
+    try { database = new URL(env.T07_STAGING_DATABASE_URL); }
+    catch { throw new Error('T07 staging database URL is invalid.'); }
+  }
   if (!['postgres:', 'postgresql:'].includes(database.protocol)) {
     throw new Error('T07 staging PostgreSQL URL must begin with postgresql:// or postgres://. Set the full Session pooler URI, not a password or hostname alone.');
   }
