@@ -21,6 +21,12 @@ jobs:
         run: |
           npm audit --omit=dev --json > /tmp/t07-npm-audit.json || true
           node -e 'const a=require("/tmp/t07-npm-audit.json"); console.log("T07_AUDIT_COUNTS", JSON.stringify(a.metadata?.vulnerabilities || {})); for(const [name,v] of Object.entries(a.vulnerabilities || {})){ console.log("T07_AUDIT_ITEM", JSON.stringify({name,severity:v.severity,direct:v.isDirect,via:(v.via || []).map(x=>typeof x==="string"?x:{title:x.title,url:x.url,range:x.range}),fixAvailable:v.fixAvailable})); }'
+      - name: Generate and verify patched npm lockfile candidate
+        run: |
+          npm audit fix --package-lock-only --ignore-scripts
+          node -e 'console.log("T07_PATCHED_LOCK_BEGIN"); console.log(JSON.stringify(require("./package-lock.json"))); console.log("T07_PATCHED_LOCK_END")'
+          npm ci
+          npm audit --omit=dev
       - run: npm test
   isolated-postgres-http:
     runs-on: ubuntu-latest
