@@ -31,6 +31,8 @@
 | `PUBLIC_ORIGIN` | **새 Render 서비스의 정확한 HTTPS 주소**, 마지막 슬래시 없이 |
 | `T07_STAGING_ACK` | `I_VERIFIED_SEPARATE_DATABASE` |
 
+또한 전용 시작 명령은 앱이 실행되기 전에 새 DB에서 과제6의 6개 테이블, 과제7의 `app_users`·`auth_sessions`, `plans.owner_user_id`가 존재하는지 **읽기 전용으로 확인**한다. 스키마가 불완전하면 배포 시작을 거부하며 자동 마이그레이션하지 않는다.
+
 **스테이징 서비스에는 `DATABASE_URL`을 설정하지 않는다.** 전용 시작 명령이 `T07_STAGING_DATABASE_URL`을 검증한 후 내부적으로만 전달한다. `DATABASE_URL`이 이미 있거나 위 확인 문자열이 없으면 시작을 거부한다.
 
 또한 Render에서 제공되는 `RENDER_GIT_BRANCH`, `RENDER_EXTERNAL_URL`, `RENDER_GIT_REPO_SLUG`이 실제 배포 시 알려지면 코드가 각각 브랜치, 서비스 URL, 저장소를 검사한다.
