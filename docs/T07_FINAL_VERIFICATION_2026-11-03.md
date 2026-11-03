@@ -40,7 +40,7 @@
 ### Render
 
 - 과제7 최신 배포: **live**
-- 배포 커밋(조회 당시): `670b7dfa86da0ced7326650b24a19f581aa55ed1`
+- **보안 패치 포함 Render 재배포 성공(2026-11-03)**: `c104021d42da510adb17c366a19036bc3b4ccf06` — 배포 상태 `live`, Render 실제 `npm ci` 로그에서 **0 vulnerabilities**. [Render 서비스](https://dashboard.render.com/web/srv-dbko355g1s2s73dada80).
 - 과제7은 `assignment-7` 브랜치 사용. 기존 과제6 Render 서비스의 `main` 브랜치는 변경하지 않음.
 - 최초 가동 로그의 DB 스키마 검사 통과 및 서버 기동 확인. **GitHub Actions의 실제 공개 주소 HTTP 요청**에서 \`/api/health\` 200, \`/\` 200, 미인증 API 401, 미인증 보호 페이지 302 응답을 9/9 확인했다. 실제 브라우저 상호작용은 사용자 제공 점검 결과이며 CI는 HTTP 응답만 검증한다.
 
