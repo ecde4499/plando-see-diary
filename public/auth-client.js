@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     byId('showLogin').className = 'button' + (mode === 'login' ? '' : ' secondary');
     byId('showRegister').className = 'button' + (mode === 'register' ? '' : ' secondary');
     byId('passwordHint').hidden = mode !== 'register';
+    byId('passwordHint').classList.toggle('hidden', mode !== 'register');
     password.autocomplete = mode === 'register' ? 'new-password' : 'current-password';
     submit.textContent = mode === 'register' ? '회원가입' : '로그인';
     showError('');
