@@ -1,0 +1,36 @@
+name: T07 one-time simulated demo and actual browser screenshots
+on:
+  push:
+    branches: [assignment-7]
+    paths:
+      - '.github/workflows/t07-demo-screenshots.yml'
+permissions:
+  contents: read
+jobs:
+  stage-demo-captures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install app and isolated browser automation library
+        run: |
+          npm ci
+          npm install --no-save --package-lock=false --ignore-scripts playwright-core@1.56.0
+          node --check tools/t07-demo-screenshots.cjs
+          if ! command -v google-chrome && ! command -v chromium; then
+            npx playwright install chromium
+          fi
+      - name: Create exactly one separate simulated demo account and capture genuine T07 pages
+        run: node tools/t07-demo-screenshots.cjs
+      - name: Save evidence screenshots without login credentials or session tokens
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: t07-simulated-demo-screenshots-2026-11-04
+          path: test-results/t07-demo-captures/
+          if-no-files-found: warn
+          retention-days: 14
