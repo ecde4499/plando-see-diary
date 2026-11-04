@@ -11,4 +11,6 @@ test('T07 login page and diary route are wired', () => {
  assert.ok(server.includes('t07-login.html'));
  assert.ok(login.includes('id="authForm"'));
  assert.ok(login.includes('id="showRegister"'));
+ const controller = fs.readFileSync(path.join(root, 'public', 'auth-client.js'), 'utf8');
+ assert.ok(controller.includes("byId('passwordHint').classList.toggle('hidden', mode !== 'register')"), 'Registration password guidance must become visible');
 });
